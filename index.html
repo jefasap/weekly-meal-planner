@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekly Meal Planner — Perte de poids sportive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+          colors: { ink: { 950: '#0b0f17', 900: '#111827', 850: '#151c2b', 800: '#1b2335', 700: '#263047' } }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .card { background: linear-gradient(180deg, rgba(27,35,53,.85), rgba(17,24,39,.85)); border: 1px solid rgba(148,163,184,.12); border-radius: 1rem; }
+    .tab-btn[aria-selected="true"] { background: rgb(16 185 129 / .15); color: rgb(110 231 183); border-color: rgb(16 185 129 / .5); }
+    .bar { transition: width .5s ease; }
+    .shop-item input:checked + span { text-decoration: line-through; color: rgb(100 116 139); }
+    input[type="number"]::-webkit-inner-spin-button { opacity: .4; }
+    .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #263047; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-ink-950 text-slate-200 font-sans min-h-screen">
+  <div class="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,.10),transparent_60%)]"></div>
+
+  <!-- Header -->
+  <header class="max-w-7xl mx-auto px-4 pt-6 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">🥗 Weekly Meal Planner</h1>
+        <p class="text-slate-400 text-sm mt-1">Perte de poids sportive · jeûne intermittent le matin · objectif 76 kg</p>
+      </div>
+      <nav class="flex gap-2 bg-ink-900/70 p-1 rounded-xl border border-slate-700/40 w-full sm:w-auto" role="tablist">
+        <button class="tab-btn flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium border border-transparent text-slate-300 hover:text-white" data-tab="plan" role="tab" aria-selected="true">📅 Planning</button>
+        <button class="tab-btn flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium border border-transparent text-slate-300 hover:text-white" data-tab="shop" role="tab" aria-selected="false">🛒 Courses</button>
+        <button class="tab-btn flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium border border-transparent text-slate-300 hover:text-white" data-tab="weight" role="tab" aria-selected="false">⚖️ Pesée</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 pb-16">
+
+    <!-- ================= PLANNING ================= -->
+    <section id="tab-plan" class="tab-panel space-y-6">
+      <div class="grid gap-4 lg:grid-cols-3">
+        <!-- Réglages -->
+        <div class="card p-5 space-y-4">
+          <h2 class="font-semibold text-white">⚙️ Réglages de la semaine</h2>
+          <div>
+            <label class="text-xs uppercase tracking-wide text-slate-400">Nombre de portions</label>
+            <div class="mt-2 flex items-center gap-2">
+              <button id="portions-minus" class="w-10 h-10 rounded-lg bg-ink-800 border border-slate-700 hover:border-emerald-500 text-lg">−</button>
+              <input id="portions" type="number" min="1" max="8" value="1" class="w-16 h-10 text-center rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none" />
+              <button id="portions-plus" class="w-10 h-10 rounded-lg bg-ink-800 border border-slate-700 hover:border-emerald-500 text-lg">+</button>
+              <span class="text-sm text-slate-400">personne(s)</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Les grammages et la liste de courses sont multipliés ; les macros restent affichées par personne.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="btn-regen" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">🎲 Nouvelle semaine</button>
+            <button id="btn-reset-days" class="px-4 py-2 rounded-lg bg-ink-800 border border-slate-700 hover:border-slate-500 text-sm">↺ Jours par défaut</button>
+          </div>
+        </div>
+
+        <!-- Profils -->
+        <div class="card p-5 lg:col-span-2">
+          <h2 class="font-semibold text-white mb-3">🎯 Profils énergétiques</h2>
+          <div id="profiles-legend" class="grid sm:grid-cols-2 gap-3"></div>
+          <div class="mt-4">
+            <p class="text-xs uppercase tracking-wide text-slate-400 mb-2">Semaine type — touchez un jour pour basculer repos / entraînement</p>
+            <div id="week-strip" class="grid grid-cols-7 gap-1.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Synthèse hebdo -->
+      <div id="week-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+      <!-- Jours -->
+      <div id="days" class="grid gap-4 xl:grid-cols-2"></div>
+    </section>
+
+    <!-- ================= COURSES ================= -->
+    <section id="tab-shop" class="tab-panel hidden space-y-4">
+      <div class="card p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="font-semibold text-white">🛒 Liste de courses de la semaine</h2>
+          <p id="shop-sub" class="text-sm text-slate-400"></p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="btn-copy" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">📋 Copier la liste</button>
+          <button id="btn-uncheck" class="px-4 py-2 rounded-lg bg-ink-800 border border-slate-700 hover:border-slate-500 text-sm">Tout décocher</button>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="flex justify-between text-sm mb-2"><span class="text-slate-400">Progression</span><span id="shop-progress-label" class="text-slate-300"></span></div>
+        <div class="h-2 rounded-full bg-ink-700 overflow-hidden"><div id="shop-progress" class="bar h-full bg-emerald-500" style="width:0%"></div></div>
+      </div>
+      <div id="shop-list" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
+
+    <!-- ================= PESÉE ================= -->
+    <section id="tab-weight" class="tab-panel hidden space-y-6">
+      <div id="weight-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div class="card p-5 space-y-4">
+          <h2 class="font-semibold text-white">📝 Pesée officielle du mercredi</h2>
+          <form id="weight-form" class="space-y-3">
+            <div>
+              <label for="w-date" class="text-xs uppercase tracking-wide text-slate-400">Date</label>
+              <input id="w-date" type="date" required class="mt-1 w-full h-10 px-3 rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none [color-scheme:dark]" />
+              <p id="w-date-hint" class="text-xs text-amber-400 mt-1 hidden">⚠️ Cette date n'est pas un mercredi.</p>
+            </div>
+            <div>
+              <label for="w-kg" class="text-xs uppercase tracking-wide text-slate-400">Poids (kg)</label>
+              <input id="w-kg" type="number" step="0.1" min="30" max="250" required placeholder="ex. 83,8" class="mt-1 w-full h-10 px-3 rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none" />
+            </div>
+            <div>
+              <label for="w-note" class="text-xs uppercase tracking-wide text-slate-400">Note (facultatif)</label>
+              <input id="w-note" type="text" maxlength="140" placeholder="ex. semaine chargée, 3 séances de padel" class="mt-1 w-full h-10 px-3 rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none" />
+            </div>
+            <button type="submit" class="w-full h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">Enregistrer la pesée</button>
+            <p class="text-xs text-slate-500">Une seule pesée par date : une nouvelle saisie à la même date remplace l'ancienne.</p>
+          </form>
+          <div class="pt-2 border-t border-slate-700/50">
+            <label for="w-start" class="text-xs uppercase tracking-wide text-slate-400">Début du programme (ligne cible)</label>
+            <input id="w-start" type="date" class="mt-1 w-full h-10 px-3 rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none [color-scheme:dark]" />
+          </div>
+        </div>
+
+        <div class="card p-5 lg:col-span-2">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-semibold text-white">📈 Évolution du poids</h2>
+            <div class="flex gap-3 text-xs text-slate-400">
+              <span class="flex items-center gap-1"><i class="inline-block w-3 h-0.5 bg-emerald-400"></i>Réel</span>
+              <span class="flex items-center gap-1"><i class="inline-block w-3 border-t-2 border-dashed border-amber-400"></i>Cible −0,5 kg/sem.</span>
+            </div>
+          </div>
+          <div class="relative h-72 sm:h-80"><canvas id="weight-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="font-semibold text-white mb-3">🗂️ Historique</h2>
+        <div class="overflow-x-auto scrollbar-thin">
+          <table class="w-full text-sm">
+            <thead class="text-slate-400 text-xs uppercase tracking-wide">
+              <tr class="border-b border-slate-700/50">
+                <th class="text-left py-2 pr-3">Date</th><th class="text-right py-2 pr-3">Poids</th><th class="text-right py-2 pr-3">Δ sem.</th><th class="text-right py-2 pr-3">Cible</th><th class="text-left py-2 pr-3">Note</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="weight-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm shadow-lg opacity-0 pointer-events-none transition-opacity"></div>
+
+<script>
+/* =========================================================
+   DONNÉES — valeurs nutritionnelles pour 100 g (crus)
+   ========================================================= */
+const AISLES = [
+  { id: 'prot',  label: 'Boucherie / Poissonnerie / Protéines', icon: '🥩' },
+  { id: 'fl',    label: 'Fruits & Légumes', icon: '🥦' },
+  { id: 'frais', label: 'Frais & Produits laitiers', icon: '🥛' },
+  { id: 'epi',   label: 'Épicerie & Féculents', icon: '🍚' },
+  { id: 'surg',  label: 'Surgelés', icon: '❄️' }
+];
+
+const FOODS = {
+  poulet:    { n: 'Blanc de poulet',                  a: 'prot',  k: 110, p: 23,   c: 0,   f: 1.8 },
+  dinde:     { n: 'Escalope de dinde',                a: 'prot',  k: 105, p: 23.5, c: 0,   f: 1.2 },
+  steak:     { n: 'Steak haché 5 % MG',               a: 'prot',  k: 125, p: 21,   c: 0,   f: 5 },
+  cabillaud: { n: 'Dos de cabillaud',                 a: 'prot',  k: 80,  p: 18,   c: 0,   f: 0.7 },
+  colin:     { n: 'Filet de colin',                   a: 'prot',  k: 78,  p: 17,   c: 0,   f: 0.9 },
+  tofu:      { n: 'Tofu ferme nature',                a: 'prot',  k: 125, p: 13,   c: 1.5, f: 7.5 },
+  oeufs:     { n: 'Œufs entiers',                     a: 'prot',  k: 145, p: 12.5, c: 0.7, f: 10,  unit: 60,  unitName: 'œuf' },
+  blancs:    { n: "Blancs d'œufs liquides",           a: 'frais', k: 48,  p: 11,   c: 0.7, f: 0.2 },
+  skyr:      { n: 'Skyr nature 0 %',                  a: 'frais', k: 63,  p: 11,   c: 4,   f: 0.2 },
+  fb:        { n: 'Fromage blanc 0 %',                a: 'frais', k: 47,  p: 7.5,  c: 4,   f: 0.2 },
+  riz:       { n: 'Riz basmati (cru)',                a: 'epi',   k: 355, p: 8,    c: 78,  f: 0.9 },
+  pates:     { n: 'Pâtes protéinées (crues)',         a: 'epi',   k: 350, p: 24,   c: 50,  f: 3 },
+  avoine:    { n: "Flocons d'avoine",                 a: 'epi',   k: 370, p: 13,   c: 60,  f: 7 },
+  galettes:  { n: 'Galettes de riz soufflé',          a: 'epi',   k: 390, p: 8,    c: 82,  f: 3 },
+  miel:      { n: 'Miel',                             a: 'epi',   k: 320, p: 0.3,  c: 80,  f: 0 },
+  amandes:   { n: 'Amandes',                          a: 'epi',   k: 600, p: 21,   c: 8,   f: 52 },
+  huile:     { n: "Huile d'olive",                    a: 'epi',   k: 900, p: 0,    c: 0,   f: 100 },
+  patate:    { n: 'Patate douce',                     a: 'fl',    k: 86,  p: 1.6,  c: 20,  f: 0.1 },
+  pdt:       { n: 'Pommes de terre',                  a: 'fl',    k: 77,  p: 2,    c: 17,  f: 0.1 },
+  courgette: { n: 'Courgettes',                       a: 'fl',    k: 17,  p: 1.2,  c: 3,   f: 0.3 },
+  tomate:    { n: 'Tomates',                          a: 'fl',    k: 18,  p: 0.9,  c: 3.9, f: 0.2 },
+  salade:    { n: 'Salade verte',                     a: 'fl',    k: 15,  p: 1.3,  c: 2,   f: 0.2 },
+  citron:    { n: 'Citron',                           a: 'fl',    k: 30,  p: 1,    c: 6,   f: 0.3 },
+  banane:    { n: 'Bananes',                          a: 'fl',    k: 90,  p: 1.1,  c: 20,  f: 0.3, unit: 120, unitName: 'banane' },
+  pomme:     { n: 'Pommes',                           a: 'fl',    k: 52,  p: 0.3,  c: 12,  f: 0.2, unit: 150, unitName: 'pomme' },
+  brocoli:   { n: 'Brocolis vapeur',                  a: 'surg',  k: 34,  p: 2.8,  c: 4,   f: 0.4 },
+  haricots:  { n: 'Haricots verts extra-fins',        a: 'surg',  k: 30,  p: 1.8,  c: 4.5, f: 0.2 },
+  epinards:  { n: 'Épinards en branches',             a: 'surg',  k: 23,  p: 2.9,  c: 1.4, f: 0.4 },
+  poelee:    { n: 'Poêlée de légumes nature (brute)', a: 'surg',  k: 40,  p: 1.8,  c: 5.5, f: 0.5 }
+};
+
+const PROFILES = {
+  rest:  { label: 'Repos / sédentaire', short: 'Repos', icon: '🛋️', color: 'sky',
+           kcal: [1500, 1600], p: [125, 135], c: [100, 120], f: [40, 45], gen: { p: 135, c: 120, f: 45 } },
+  train: { label: 'Entraînement (padel / renfo)', short: 'Sport', icon: '🎾', color: 'emerald',
+           kcal: [1850, 1950], p: [135, 145], c: [180, 200], f: [48, 52], gen: { p: 142, c: 195, f: 50 } }
+};
+
+/* Plats principaux : p = protéine (quantité calculée), c = féculent (calculé), v = légumes (fixes), x = extras fixes */
+const MAINS = [
+  { n: 'Poulet grillé, riz basmati & brocolis vapeur',        p: 'poulet',    c: 'riz',    v: [['brocoli', 200]] },
+  { n: 'Steak 5 %, pâtes protéinées & haricots verts',        p: 'steak',     c: 'pates',  v: [['haricots', 200]] },
+  { n: 'Cabillaud citronné, riz basmati & courgettes',        p: 'cabillaud', c: 'riz',    v: [['courgette', 250], ['citron', 30]] },
+  { n: 'Escalope de dinde, patate douce & épinards',          p: 'dinde',     c: 'patate', v: [['epinards', 200]] },
+  { n: 'Tofu sauté, pâtes protéinées & poêlée de légumes',    p: 'tofu',      c: 'pates',  v: [['poelee', 250]] },
+  { n: 'Omelette aux épinards & pommes de terre vapeur',      p: 'blancs',    c: 'pdt',    v: [['epinards', 150]], x: [['oeufs', 180]] },
+  { n: 'Colin vapeur, pâtes protéinées & haricots verts',     p: 'colin',     c: 'pates',  v: [['haricots', 200]] },
+  { n: 'Steak 5 %, patate douce rôtie & salade de tomates',   p: 'steak',     c: 'patate', v: [['salade', 80], ['tomate', 150]] },
+  { n: 'Poulet, pâtes protéinées & courgettes poêlées',       p: 'poulet',    c: 'pates',  v: [['courgette', 250]] },
+  { n: 'Bowl de dinde, riz basmati & poêlée de légumes',      p: 'dinde',     c: 'riz',    v: [['poelee', 250]] },
+  { n: 'Cabillaud, pommes de terre vapeur & haricots verts',  p: 'cabillaud', c: 'pdt',    v: [['haricots', 200]] },
+  { n: 'Colin en papillote, riz basmati & brocolis',          p: 'colin',     c: 'riz',    v: [['brocoli', 200], ['citron', 30]] }
+];
+
+const SNACKS = [
+  { n: "Skyr, banane & flocons d'avoine",       i: [['skyr', 150], ['banane', 120], ['avoine', 30]] },
+  { n: 'Galettes de riz, miel & fromage blanc', i: [['galettes', 30], ['miel', 15], ['fb', 150]] },
+  { n: 'Skyr, pomme & amandes',                 i: [['skyr', 150], ['pomme', 150], ['amandes', 10]] }
+];
+
+const DINNER_DESSERT = ['skyr', 150];
+const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const DEFAULT_PROFILES = ['train', 'rest', 'train', 'rest', 'train', 'train', 'rest'];
+const START_WEIGHT = 84.3, GOAL_WEIGHT = 76, WEEKLY_LOSS = 0.5;
+
+/* =========================================================
+   ÉTAT & PERSISTANCE
+   ========================================================= */
+const LS_STATE = 'wmp_state_v1', LS_WEIGHTS = 'wmp_weights_v1';
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const state = Object.assign({
+  seed: Math.floor(Math.random() * 1e9),
+  portions: 1,
+  profiles: DEFAULT_PROFILES.slice(),
+  snackOff: [false, false, false, false, false, false, false],
+  checked: {},
+  startDate: null
+}, load(LS_STATE, {}));
+let weights = load(LS_WEIGHTS, []);
+const saveState = () => localStorage.setItem(LS_STATE, JSON.stringify(state));
+const saveWeights = () => localStorage.setItem(LS_WEIGHTS, JSON.stringify(weights));
+
+/* =========================================================
+   UTILITAIRES
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const nf0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const round5 = v => Math.round(v / 5) * 5;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+function macros(items) {
+  return items.reduce((t, [key, g]) => {
+    const f = FOODS[key], r = g / 100;
+    t.k += f.k * r; t.p += f.p * r; t.c += f.c * r; t.f += f.f * r;
+    return t;
+  }, { k: 0, p: 0, c: 0, f: 0 });
+}
+
+/* Dates (format ISO local AAAA-MM-JJ) */
+const toISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fromISO = s => new Date(s + 'T00:00:00');
+const fmtDate = (s, opts = { day: '2-digit', month: '2-digit', year: 'numeric' }) => fromISO(s).toLocaleDateString('fr-FR', opts);
+function lastWednesday() {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() - 3 + 7) % 7));
+  return toISO(d);
+}
+const weeksBetween = (a, b) => (fromISO(b) - fromISO(a)) / (7 * 864e5);
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.opacity = '0', 1800);
+}
+
+/* =========================================================
+   GÉNÉRATEUR DE REPAS
+   ========================================================= */
+/* Calcule les grammages de protéine / féculent / huile pour atteindre la cible du repas */
+function buildMeal(tpl, target, withDessert) {
+  const fixed = [...tpl.v, ...(tpl.x || []), ...(withDessert ? [DINNER_DESSERT] : [])];
+  const fm = macros(fixed);
+  const rem = { p: target.p - fm.p, c: target.c - fm.c, f: target.f - fm.f };
+  const P = FOODS[tpl.p], C = FOODS[tpl.c];
+  // Système 2x2 sur protéines et glucides (unités de 100 g)
+  const det = P.p * C.c - C.p * P.c;
+  let x = (rem.p * C.c - C.p * rem.c) / det;
+  let y = (P.p * rem.c - P.c * rem.p) / det;
+  x = round5(clamp(x, 0.8, 4.5) * 100);
+  y = round5(clamp(y, 0, 6) * 100);
+  let oil = Math.round(clamp(rem.f - (x / 100) * P.f - (y / 100) * C.f, 0, 15));
+  if (oil < 3) oil = 0;
+
+  const items = [[tpl.p, x]];
+  if (y > 0) items.push([tpl.c, y]);
+  items.push(...fixed);
+  if (oil) items.push(['huile', oil]);
+  return { name: tpl.n, items, m: macros(items) };
+}
+
+function generateWeek() {
+  const rng = mulberry32(state.seed);
+  let deck = [];
+  const draw = (avoid) => {
+    if (!deck.length) deck = shuffle(MAINS.slice(), rng);
+    let idx = deck.findIndex(t => !avoid.includes(t.p));
+    if (idx < 0) idx = 0;
+    return deck.splice(idx, 1)[0];
+  };
+  const snackStart = Math.floor(rng() * SNACKS.length);
+  let snackCount = 0, prevP = null;
+
+  return DAYS.map((day, i) => {
+    const profKey = state.profiles[i];
+    const prof = PROFILES[profKey];
+    const meals = [];
+    const hasSnack = profKey === 'train' && !state.snackOff[i];
+    let snack = null, remaining = { ...prof.gen };
+
+    if (hasSnack) {
+      const s = SNACKS[(snackStart + snackCount++) % SNACKS.length];
+      snack = { name: s.n, items: s.i.slice(), m: macros(s.i), type: 'snack' };
+      remaining = { p: remaining.p - snack.m.p, c: remaining.c - snack.m.c, f: remaining.f - snack.m.f };
+    }
+    const half = { p: remaining.p / 2, c: remaining.c / 2, f: remaining.f / 2 };
+    const lunchTpl = draw([prevP]);
+    const dinnerTpl = draw([lunchTpl.p]);
+    prevP = dinnerTpl.p;
+
+    meals.push({ ...buildMeal(lunchTpl, half, false), type: 'lunch' });
+    if (snack) meals.push(snack);
+    meals.push({ ...buildMeal(dinnerTpl, half, true), type: 'dinner' });
+
+    const total = meals.reduce((t, m) => ({ k: t.k + m.m.k, p: t.p + m.m.p, c: t.c + m.m.c, f: t.f + m.m.f }), { k: 0, p: 0, c: 0, f: 0 });
+    return { day, i, profKey, prof, meals, total };
+  });
+}
+
+/* =========================================================
+   RENDU — PLANNING
+   ========================================================= */
+const MEAL_META = {
+  lunch:  { label: 'Déjeuner', icon: '☀️', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+  snack:  { label: 'Collation pré-effort', icon: '⚡', cls: 'bg-violet-500/15 text-violet-300 border-violet-500/30' },
+  dinner: { label: 'Dîner', icon: '🌙', cls: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' }
+};
+
+function fmtQty(key, g) {
+  const f = FOODS[key];
+  let s = g >= 1000 ? `${nf1.format(g / 1000)} kg` : `${nf0.format(g)} g`;
+  if (f.unit) { const n = Math.round(g / f.unit * 2) / 2; s += ` <span class="text-slate-500">(≈ ${nf1.format(n).replace(',0', '')} ${f.unitName}${n > 1 ? 's' : ''})</span>`; }
+  return s;
+}
+
+function gauge(label, value, range, unit, color) {
+  const mid = (range[0] + range[1]) / 2;
+  const pct = value / mid * 100;
+  const ok = value >= range[0] * 0.95 && value <= range[1] * 1.05;
+  const barColor = ok ? color : (value < range[0] ? 'bg-sky-500' : 'bg-amber-500');
+  const tgt = range[0] === range[1] ? nf0.format(range[0]) : `${nf0.format(range[0])}–${nf0.format(range[1])}`;
+  return `
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-400">${label}</span>
+        <span class="${ok ? 'text-slate-200' : 'text-amber-300'}">${nf0.format(value)} / ${tgt} ${unit} <span class="text-slate-500">(${nf0.format(pct)} %)</span></span>
+      </div>
+      <div class="h-2 rounded-full bg-ink-700 overflow-hidden relative">
+        <div class="bar h-full ${barColor} rounded-full" style="width:${Math.min(pct, 100)}%"></div>
+      </div>
+    </div>`;
+}
+
+function renderProfilesLegend() {
+  $('#profiles-legend').innerHTML = Object.entries(PROFILES).map(([k, p]) => `
+    <div class="rounded-xl border ${k === 'train' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-sky-500/30 bg-sky-500/5'} p-3">
+      <div class="font-medium ${k === 'train' ? 'text-emerald-300' : 'text-sky-300'}">${p.icon} ${p.label}</div>
+      <div class="text-2xl font-bold text-white mt-1">${nf0.format(p.kcal[0])}–${nf0.format(p.kcal[1])} <span class="text-sm font-normal text-slate-400">kcal</span></div>
+      <div class="flex gap-3 text-xs text-slate-300 mt-1">
+        <span>P ${p.p[0]}–${p.p[1]} g</span><span>G ${p.c[0]}–${p.c[1]} g</span><span>L ${p.f[0]}–${p.f[1]} g</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderWeekStrip() {
+  $('#week-strip').innerHTML = DAYS.map((d, i) => {
+    const t = state.profiles[i] === 'train';
+    return `<button data-toggle-day="${i}" class="rounded-lg py-2 text-center border transition ${t ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'bg-sky-500/10 border-sky-500/30 text-sky-200'} hover:brightness-125">
+      <div class="text-[11px] sm:text-xs font-semibold">${d.slice(0, 3)}</div>
+      <div class="text-base">${t ? '🎾' : '🛋️'}</div>
+    </button>`;
+  }).join('');
+}
+
+function renderPlan() {
+  const week = generateWeek();
+  const P = state.portions;
+  renderWeekStrip();
+
+  // Synthèse
+  const nTrain = week.filter(d => d.profKey === 'train').length;
+  const avgK = week.reduce((s, d) => s + d.total.k, 0) / 7;
+  const avgP = week.reduce((s, d) => s + d.total.p, 0) / 7;
+  const totK = week.reduce((s, d) => s + d.total.k, 0);
+  const stat = (label, val, sub) => `<div class="card p-4"><div class="text-xs uppercase tracking-wide text-slate-400">${label}</div><div class="text-xl font-bold text-white mt-1">${val}</div><div class="text-xs text-slate-500">${sub}</div></div>`;
+  $('#week-summary').innerHTML =
+    stat('Jours d\'entraînement', `${nTrain} / 7`, `${7 - nTrain} jour(s) de repos`) +
+    stat('Moyenne journalière', `${nf0.format(avgK)} kcal`, 'par personne') +
+    stat('Protéines moyennes', `${nf0.format(avgP)} g/j`, 'par personne') +
+    stat('Total semaine', `${nf0.format(totK)} kcal`, 'par personne');
+
+  // Jours
+  $('#days').innerHTML = week.map(d => {
+    const t = d.profKey === 'train';
+    const accent = t ? 'emerald' : 'sky';
+    const mealsHtml = d.meals.map(m => {
+      const meta = MEAL_META[m.type];
+      return `
+      <div class="rounded-xl bg-ink-900/60 border border-slate-700/40 p-3">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <span class="text-[11px] px-2 py-0.5 rounded-full border ${meta.cls}">${meta.icon} ${meta.label}</span>
+          <span class="font-medium text-white text-sm">${esc(m.name)}</span>
+        </div>
+        <ul class="text-sm space-y-0.5 mb-2">
+          ${m.items.map(([k, g]) => `<li class="flex justify-between gap-2"><span class="text-slate-300">${FOODS[k].n}</span><span class="text-slate-200 tabular-nums whitespace-nowrap">${fmtQty(k, g * P)}</span></li>`).join('')}
+        </ul>
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs pt-2 border-t border-slate-700/40">
+          <span class="font-semibold text-white">${nf0.format(m.m.k)} kcal</span>
+          <span class="text-rose-300">P ${nf0.format(m.m.p)} g</span>
+          <span class="text-amber-300">G ${nf0.format(m.m.c)} g</span>
+          <span class="text-cyan-300">L ${nf0.format(m.m.f)} g</span>
+          ${P > 1 ? '<span class="text-slate-500">· macros / pers.</span>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <article class="card p-4 sm:p-5 space-y-3">
+      <header class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-semibold text-white">${d.day}</h3>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-${accent}-500/15 text-${accent}-300 border border-${accent}-500/30">${d.prof.icon} ${d.prof.short}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          ${t ? `<label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer"><input type="checkbox" data-snack="${d.i}" ${state.snackOff[d.i] ? '' : 'checked'} class="accent-violet-500">Collation</label>` : ''}
+          <select data-profile="${d.i}" class="text-xs h-8 px-2 rounded-lg bg-ink-900 border border-slate-700 focus:border-emerald-500 outline-none">
+            <option value="rest" ${!t ? 'selected' : ''}>🛋️ Repos / sédentaire</option>
+            <option value="train" ${t ? 'selected' : ''}>🎾 Entraînement</option>
+          </select>
+        </div>
+      </header>
+      <div class="text-xs text-slate-500 flex items-center gap-2"><span>🌅 Matin — jeûne intermittent</span><span class="px-1.5 rounded bg-ink-800 text-slate-400">0 kcal</span><span>· eau, café, thé sans sucre</span></div>
+      <div class="space-y-2">${mealsHtml}</div>
+      <div class="space-y-2 pt-1">
+        ${gauge('Calories', d.total.k, d.prof.kcal, 'kcal', 'bg-emerald-500')}
+        ${gauge('Protéines', d.total.p, d.prof.p, 'g', 'bg-rose-400')}
+        ${gauge('Glucides', d.total.c, d.prof.c, 'g', 'bg-amber-400')}
+        ${gauge('Lipides', d.total.f, d.prof.f, 'g', 'bg-cyan-400')}
+      </div>
+    </article>`;
+  }).join('');
+
+  renderShop(week);
+}
+
+/* =========================================================
+   RENDU — COURSES
+   ========================================================= */
+let shopData = [];
+function renderShop(week) {
+  const P = state.portions;
+  const agg = {};
+  week.forEach(d => d.meals.forEach(m => m.items.forEach(([k, g]) => { agg[k] = (agg[k] || 0) + g * P; })));
+
+  shopData = AISLES.map(a => ({
+    ...a,
+    items: Object.entries(agg).filter(([k]) => FOODS[k].a === a.id)
+      .map(([k, g]) => {
+        const f = FOODS[k];
+        const grams = Math.ceil(g / 10) * 10;
+        let qty = grams >= 1000 ? `${nf1.format(grams / 1000)} kg` : `${nf0.format(grams)} g`;
+        if (f.unit) { const n = Math.ceil(g / f.unit); qty = `${n} ${f.unitName}${n > 1 ? 's' : ''} (≈ ${qty})`; }
+        return { key: k, name: f.n, qty, grams };
+      })
+      .sort((x, y) => x.name.localeCompare(y.name, 'fr'))
+  })).filter(a => a.items.length);
+
+  $('#shop-sub').textContent = `Lundi → dimanche · ${P} portion${P > 1 ? 's' : ''} · quantités crues arrondies à 10 g`;
+  $('#shop-list').innerHTML = shopData.map(a => `
+    <div class="card p-4">
+      <h3 class="font-semibold text-white mb-3 flex items-center gap-2"><span>${a.icon}</span>${a.label}<span class="ml-auto text-xs text-slate-500">${a.items.length}</span></h3>
+      <ul class="space-y-1">
+        ${a.items.map(it => `
+          <li>
+            <label class="shop-item flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-ink-800/70 cursor-pointer">
+              <input type="checkbox" data-shop="${it.key}" ${state.checked[it.key] ? 'checked' : ''} class="w-4 h-4 accent-emerald-500 shrink-0">
+              <span class="flex-1 flex justify-between gap-2 text-sm"><span>${it.name}</span><span class="tabular-nums text-slate-300 text-right">${it.qty}</span></span>
+            </label>
+          </li>`).join('')}
+      </ul>
+    </div>`).join('');
+  updateShopProgress();
+}
+
+function updateShopProgress() {
+  const all = shopData.flatMap(a => a.items);
+  const done = all.filter(i => state.checked[i.key]).length;
+  $('#shop-progress').style.width = (all.length ? done / all.length * 100 : 0) + '%';
+  $('#shop-progress-label').textContent = `${done} / ${all.length} article(s)`;
+}
+
+function shopText() {
+  const lines = [`🛒 LISTE DE COURSES — semaine (${state.portions} portion${state.portions > 1 ? 's' : ''})`, ''];
+  shopData.forEach(a => {
+    lines.push(`${a.icon} ${a.label.toUpperCase()}`);
+    a.items.forEach(it => lines.push(`${state.checked[it.key] ? '[x]' : '[ ]'} ${it.name} — ${it.qty}`));
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
+async function copyShop() {
+  const txt = shopText();
+  try { await navigator.clipboard.writeText(txt); }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  toast('Liste copiée dans le presse-papiers ✅');
+}
+
+/* =========================================================
+   RENDU — PESÉE
+   ========================================================= */
+let chart = null;
+const sortedWeights = () => weights.slice().sort((a, b) => a.date.localeCompare(b.date));
+const startDate = () => state.startDate || (sortedWeights()[0]?.date) || lastWednesday();
+const targetAt = weeks => Math.max(GOAL_WEIGHT, START_WEIGHT - WEEKLY_LOSS * weeks);
+const WEEKS_TO_GOAL = (START_WEIGHT - GOAL_WEIGHT) / WEEKLY_LOSS;
+
+function renderWeight() {
+  const ws = sortedWeights();
+  const start = startDate();
+  $('#w-start').value = start;
+  const current = ws.length ? ws[ws.length - 1].w : START_WEIGHT;
+  const lost = START_WEIGHT - current;
+  const left = Math.max(0, current - GOAL_WEIGHT);
+  const progress = clamp(lost / (START_WEIGHT - GOAL_WEIGHT) * 100, 0, 100);
+  const goalDate = new Date(fromISO(start).getTime() + WEEKS_TO_GOAL * 7 * 864e5);
+
+  let gap = '';
+  if (ws.length) {
+    const last = ws[ws.length - 1];
+    const diff = last.w - targetAt(weeksBetween(start, last.date));
+    gap = diff <= 0 ? `<span class="text-emerald-400">${nf1.format(diff)} kg vs cible ✔</span>` : `<span class="text-amber-400">+${nf1.format(diff)} kg vs cible</span>`;
+  }
+  const card = (label, val, sub, cls = 'text-white') => `
+    <div class="card p-4"><div class="text-xs uppercase tracking-wide text-slate-400">${label}</div>
+    <div class="text-2xl font-bold ${cls} mt-1 tabular-nums">${val}</div><div class="text-xs text-slate-500 mt-0.5">${sub}</div></div>`;
+  $('#weight-cards').innerHTML =
+    card('Poids de départ', `${nf1.format(START_WEIGHT)} kg`, `Début : ${fmtDate(start)}`) +
+    card('Poids actuel', `${nf1.format(current)} kg`, ws.length ? `${fmtDate(ws[ws.length - 1].date)} · ${gap}` : 'Aucune pesée enregistrée', 'text-emerald-300') +
+    card('Perte totale', `${lost >= 0 ? '−' : '+'}${nf1.format(Math.abs(lost))} kg`, `
+      <div class="h-1.5 mt-1.5 rounded-full bg-ink-700 overflow-hidden"><div class="bar h-full bg-emerald-500" style="width:${progress}%"></div></div>
+      <div class="mt-1">${nf0.format(progress)} % de l'objectif</div>`, lost >= 0 ? 'text-emerald-300' : 'text-rose-300') +
+    card('Reste à perdre', `${nf1.format(left)} kg`, `avant ${nf0.format(GOAL_WEIGHT)} kg · cible atteinte le ${goalDate.toLocaleDateString('fr-FR')}`, left === 0 ? 'text-emerald-300' : 'text-white');
+
+  // Tableau
+  $('#weight-table').innerHTML = ws.length ? ws.slice().reverse().map((e, idx, arr) => {
+    const prev = arr[idx + 1];
+    const delta = prev ? e.w - prev.w : null;
+    const tgt = targetAt(weeksBetween(start, e.date));
+    return `<tr class="border-b border-slate-800">
+      <td class="py-2 pr-3 whitespace-nowrap">${fmtDate(e.date, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+      <td class="py-2 pr-3 text-right font-medium tabular-nums">${nf1.format(e.w)} kg</td>
+      <td class="py-2 pr-3 text-right tabular-nums ${delta == null ? 'text-slate-500' : delta <= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta == null ? '—' : (delta > 0 ? '+' : '') + nf1.format(delta)}</td>
+      <td class="py-2 pr-3 text-right tabular-nums text-slate-400">${nf1.format(tgt)} kg</td>
+      <td class="py-2 pr-3 text-slate-400">${esc(e.note || '')}</td>
+      <td class="py-2 text-right"><button data-del="${e.date}" class="text-slate-500 hover:text-rose-400 px-2" title="Supprimer">✕</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6" class="py-6 text-center text-slate-500">Aucune pesée pour l'instant — enregistrez votre première pesée du mercredi.</td></tr>`;
+
+  renderChart(ws, start);
+}
+
+function renderChart(ws, start) {
+  const actual = ws.map(e => ({ x: weeksBetween(start, e.date), y: e.w, note: e.note, date: e.date }));
+  const lastX = Math.max(Math.ceil(WEEKS_TO_GOAL), ...actual.map(p => Math.ceil(p.x)));
+  const firstX = Math.min(0, ...actual.map(p => Math.floor(p.x)));
+  const target = [];
+  for (let w = 0; w <= lastX; w++) {
+    if (w > WEEKS_TO_GOAL && w - 1 < WEEKS_TO_GOAL) target.push({ x: WEEKS_TO_GOAL, y: GOAL_WEIGHT });
+    target.push({ x: w, y: targetAt(w) });
+  }
+  const weekLabel = x => {
+    const d = new Date(fromISO(start).getTime() + x * 7 * 864e5);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  };
+  const data = {
+    datasets: [
+      { label: 'Poids réel', data: actual, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,.15)', fill: true,
+        pointBackgroundColor: '#34d399', pointRadius: 4, pointHoverRadius: 7, tension: .25, borderWidth: 2.5 },
+      { label: 'Cible (−0,5 kg/sem.)', data: target, borderColor: '#fbbf24', borderDash: [6, 5], pointRadius: 0, borderWidth: 2, fill: false },
+      { label: 'Objectif 76 kg', data: [{ x: firstX, y: GOAL_WEIGHT }, { x: lastX, y: GOAL_WEIGHT }], borderColor: 'rgba(148,163,184,.35)', borderWidth: 1, pointRadius: 0, fill: false }
+    ]
+  };
+  const allY = [...actual.map(p => p.y), START_WEIGHT, GOAL_WEIGHT];
+  const options = {
+    responsive: true, maintainAspectRatio: false, parsing: false,
+    interaction: { mode: 'nearest', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#111827', borderColor: '#263047', borderWidth: 1, padding: 10,
+        callbacks: {
+          title: items => items[0].raw.date ? fmtDate(items[0].raw.date) : `Semaine ${nf1.format(items[0].raw.x).replace(',0', '')} · ${weekLabel(items[0].raw.x)}`,
+          label: item => `${item.dataset.label} : ${nf1.format(item.raw.y)} kg`,
+          afterLabel: item => item.raw.note ? `📝 ${item.raw.note}` : ''
+        }
+      }
+    },
+    scales: {
+      x: { type: 'linear', min: firstX, max: lastX, ticks: { color: '#94a3b8', stepSize: 2, callback: v => `S${v} · ${weekLabel(v)}`, maxRotation: 0, autoSkip: true }, grid: { color: 'rgba(148,163,184,.08)' } },
+      y: { suggestedMin: Math.floor(Math.min(...allY) - 1), suggestedMax: Math.ceil(Math.max(...allY) + 1),
+           ticks: { color: '#94a3b8', callback: v => `${v} kg` }, grid: { color: 'rgba(148,163,184,.08)' } }
+    }
+  };
+  if (typeof Chart === 'undefined') return;
+  if (chart) chart.destroy();
+  chart = new Chart($('#weight-chart'), { type: 'line', data, options });
+}
+
+/* =========================================================
+   ÉVÉNEMENTS
+   ========================================================= */
+function setPortions(v) {
+  state.portions = clamp(parseInt(v, 10) || 1, 1, 8);
+  $('#portions').value = state.portions;
+  saveState(); renderPlan();
+}
+$('#portions-minus').onclick = () => setPortions(state.portions - 1);
+$('#portions-plus').onclick = () => setPortions(state.portions + 1);
+$('#portions').onchange = e => setPortions(e.target.value);
+
+$('#btn-regen').onclick = () => {
+  state.seed = Math.floor(Math.random() * 1e9); state.checked = {};
+  saveState(); renderPlan(); toast('Nouvelle semaine générée 🎲');
+};
+$('#btn-reset-days').onclick = () => {
+  state.profiles = DEFAULT_PROFILES.slice(); state.snackOff = state.snackOff.map(() => false);
+  saveState(); renderPlan();
+};
+
+document.addEventListener('click', e => {
+  const tog = e.target.closest('[data-toggle-day]');
+  if (tog) {
+    const i = +tog.dataset.toggleDay;
+    state.profiles[i] = state.profiles[i] === 'train' ? 'rest' : 'train';
+    saveState(); renderPlan();
+  }
+  const del = e.target.closest('[data-del]');
+  if (del && confirm('Supprimer cette pesée ?')) {
+    weights = weights.filter(w => w.date !== del.dataset.del);
+    saveWeights(); renderWeight();
+  }
+  const tab = e.target.closest('[data-tab]');
+  if (tab) {
+    document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', b === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + tab.dataset.tab));
+    if (tab.dataset.tab === 'weight' && chart) chart.resize();
+  }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.profile !== undefined) { state.profiles[+t.dataset.profile] = t.value; saveState(); renderPlan(); }
+  else if (t.dataset.snack !== undefined) { state.snackOff[+t.dataset.snack] = !t.checked; saveState(); renderPlan(); }
+  else if (t.dataset.shop !== undefined) {
+    if (t.checked) state.checked[t.dataset.shop] = true; else delete state.checked[t.dataset.shop];
+    saveState(); updateShopProgress();
+  }
+});
+
+$('#btn-copy').onclick = copyShop;
+$('#btn-uncheck').onclick = () => { state.checked = {}; saveState(); renderPlan(); };
+
+const wDate = $('#w-date');
+const checkWednesday = () => $('#w-date-hint').classList.toggle('hidden', !wDate.value || fromISO(wDate.value).getDay() === 3);
+wDate.addEventListener('input', checkWednesday);
+
+$('#weight-form').onsubmit = e => {
+  e.preventDefault();
+  const date = wDate.value;
+  const w = parseFloat(String($('#w-kg').value).replace(',', '.'));
+  if (!date || !(w > 0)) return;
+  const note = $('#w-note').value.trim();
+  weights = weights.filter(x => x.date !== date);
+  weights.push({ date, w: Math.round(w * 10) / 10, note });
+  saveWeights();
+  $('#w-kg').value = ''; $('#w-note').value = '';
+  renderWeight(); toast('Pesée enregistrée ⚖️');
+};
+$('#w-start').onchange = e => { state.startDate = e.target.value || null; saveState(); renderWeight(); };
+
+/* =========================================================
+   INIT
+   ========================================================= */
+$('#portions').value = state.portions;
+wDate.value = lastWednesday();
+renderProfilesLegend();
+renderPlan();
+renderWeight();
+</script>
+</body>
+</html>
